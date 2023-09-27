@@ -1,0 +1,28 @@
+{% extends 'base.html' %} 
+{% load static %} 
+{% block content %}
+{% load tz%}
+
+<section class='text-center container'>
+
+    <div class="container">
+
+        <div class="content-section p-0 mt-1">
+
+            <div class="m-0">
+                <p><span style="color:red">Channel:{{channel}}</span></p>
+                <h4>{{title}}</h4>
+            </div>
+
+            <hr class="p-0 m-0">
+            <p class="description m-5 p-5">
+               {{link}}
+            </p>
+            <hr>
+        </div>
+
+    </div>
+
+</section>
+
+{% endblock content %}
