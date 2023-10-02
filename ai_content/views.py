@@ -3,7 +3,14 @@ from .forms import Youtube
 from youtubesearchpython import VideosSearch
 from django.urls import reverse
 from pytube import YouTube
-import speech_recognition as sr
+import os
+import openai
+#import speech_recognition as sr
+import assemblyai as aai
+from django.http import JsonResponse
+from .models import Content_Blog
+
+
 
 # Create your views here.
 def youtube(request):
@@ -36,20 +43,51 @@ def youtube(request):
         form = Youtube()
         lists = []
     return render(request, 'youtube.html', {'form':form, 'lists':lists})
-def content(request,title=None,channel=None, id=None):
-   # recognizer = sr.Recognizer()
-    title = title
-    link = f'https://www.youtube.com/watch?v={id}'
-    channel = channel
+def transcrib(link):
+    aai.settings.api_key = f'openai api'
     mainVideo = YouTube(link)
     stream = mainVideo.streams.filter(only_audio=True).first()
-    extension = 'mav'
+    extension = 'mp3'
     name_of_file = f'{mainVideo.title}.{extension}'
-    audio= stream.download(filename=name_of_file)
-    print(audio)
-    #audio_s = recognizer.record(sr.AudioFile(audio))
-#
-    #text = recognizer.recognize_google(audio_s)
-    #text = recognizer.recognize_sphinx(audio_s)
+    audio=stream.download(filename=name_of_file)
+    FILE_URL =audio
+    # pip install -U assemblyai
+    transcriber = aai.Transcriber()
+    transcript = transcriber.transcribe(FILE_URL)
+    text  = transcript.text
+    return text
+def openai_text(text):
+    openai.api_key = 'assembleai api'
+    prompt = f"Based on the following transcript from a YouTube video, write a comprehensive blog article, write it based on the transcript, but dont make it look like a youtube video, make it look like a proper blog article:\n\n{text}\n\nArticle:"
+    response = openai.Completion.create(
+        model="text-davinci-003",
+        prompt=prompt,
+        max_tokens=1000
+    )
+    generated_content = response.choices[0].text.strip()
+    return generated_content
 
-    return render(request, 'content.html', {'link': link, 'title':title, 'channel':channel,'audio':audio})
+def content(request,title=None,channel=None, id=None):
+    if request.method == 'POST':
+   # recognizer = sr.Recognizer()
+       title = title
+       link = f'https://www.youtube.com/watch?v={id}'
+       channel = channel
+       transcriber = transcrib(link)
+       text = openai_text(transcriber)
+       if not text:
+           return JsonResponse({'error': " Failed to get transcript"}, status=500)
+       if not text:
+           return JsonResponse({'error': " Failed to generate blog article"}, status=500)
+       new_blog_article = Content_Blog.objects.create(
+            user=request.user,
+            youtube_title=title,
+            youtube_link=link,
+            generated_content=text,
+        )
+       new_blog_article.save()
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+       #print(transcript.text)
+       #print(f'duration {transcript.audio_duration}')    
+    return render(request, 'content.html', {'text': text, 'title':title, 'channel':channel})
